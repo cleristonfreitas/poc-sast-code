@@ -2,11 +2,11 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: ['**']        # todo commit, em qualquer branch
   pull_request:
     branches: [main]
   schedule:
-    - cron: '17 6 * * 1'   # varredura semanal: pega queries novas mesmo sem commit
+    - cron: '17 6 * * 1'
   workflow_dispatch:
 
 permissions:
