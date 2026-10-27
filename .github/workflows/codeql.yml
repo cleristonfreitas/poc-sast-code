@@ -1,0 +1,66 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 6 * * 1'   # varredura semanal: pega queries novas mesmo sem commit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # enviar SARIF
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          # - language: java-kotlin
+          #   build-mode: autobuild
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended   # mais regras OWASP que o pacote padrão
+
+      - name: Analisar
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'
+          output: sarif-results        # guarda o SARIF em disco para o gate
+
+      - name: Gate de severidade (high/critical)
+        run: python3 .github/scripts/codeql_gate.py sarif-results --threshold 7.0
+
+      - name: Guardar SARIF como artefato
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sarif-${{ matrix.language }}
+          path: sarif-results
+
+  # Exemplo: qualquer job que dependa do scan não roda se o gate falhar
+  deploy:
+    needs: analyze
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Só chega aqui sem high/critical"
